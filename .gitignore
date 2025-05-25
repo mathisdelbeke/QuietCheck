@@ -1,0 +1,29 @@
+# ESP-IDF build artifacts
+build/
+*.bin
+*.elf
+*.map
+
+sdkconfig.ci
+
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# VSCode
+.vscode/settings.json
+
+# Editor backups
+*.bak
+*.swp
+*~
+
+# Environment
+.env/
+.envrc
+*.env
+
+# ESP-IDF Python virtual environment (optional)
+venv/
