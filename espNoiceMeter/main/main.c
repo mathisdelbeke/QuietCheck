@@ -30,7 +30,7 @@ static uint16_t moving_avg_noice = 0;
 static esp_mqtt_client_handle_t mqtt_client;
 static adc_oneshot_unit_handle_t adc_handle;
 
-void wifi_init_sta() {                                              
+static void wifi_init_sta() {                                              
     esp_netif_init();                                               // Init TCP/IP network intefaces
     esp_event_loop_create_default();                                // Event loop used by MQTT under the hood
     esp_netif_create_default_wifi_sta();                            
@@ -64,7 +64,7 @@ static void mqtt_event_handler_cb(void *handler_args, esp_event_base_t base, int
     }
 }
 
-void mqtt_app_start() {
+static void mqtt_app_start() {
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = MQTT_BROKER_URI
     };
@@ -74,7 +74,7 @@ void mqtt_app_start() {
     esp_mqtt_client_start(mqtt_client);
 }
 
-void adc_init() {
+static void adc_init() {
     adc_oneshot_unit_init_cfg_t init_config = {
         .unit_id = ADC_UNIT_1,
     };
@@ -87,7 +87,7 @@ void adc_init() {
     adc_oneshot_config_channel(adc_handle, ADC_CHANNEL_6, &chan_config);            // CHNNL_6: GPIO34 on ESP32
 }
 
-void init_all() {
+static void init_all() {
     nvs_flash_init();
     wifi_init_sta();
     vTaskDelay(5000 / portTICK_PERIOD_MS);                                          // Wait for WiFi
@@ -95,7 +95,7 @@ void init_all() {
     adc_init();
 }
 
-void read_noice(uint16_t *noice) {
+static void read_noice(uint16_t *noice) {
     int adc_reading = 0;
     esp_err_t ret = adc_oneshot_read(adc_handle, ADC_CHANNEL_6, &adc_reading);      // Raw ADC value, GPIO34
     if (ret == ESP_OK) {
@@ -103,7 +103,7 @@ void read_noice(uint16_t *noice) {
     }
 }
 
-void update_sma_noice(uint16_t *noice) {
+static void update_sma_noice(uint16_t *noice) {
     total_noice -= noice_readings[reading_index];                                   // Update simple moving average
     noice_readings[reading_index] = *noice;
     total_noice += noice_readings[reading_index];
@@ -111,7 +111,7 @@ void update_sma_noice(uint16_t *noice) {
     moving_avg_noice = total_noice / NUM_NOICE_READINGS; 
 }
 
-void app_main(void) {
+void app_main() {
     init_all();
 
     while (1) {
