@@ -15,9 +15,11 @@
 #define WIFI_SSID WIFI_CONFIG_SSID
 #define WIFI_PASS WIFI_CONFIG_PASS
 #define MQTT_BROKER_URI "mqtt://192.168.0.202"                      // Pi's IP address
-#define MQTT_MEASUREMENTS_TOPIC "esp32/noise"                       // Topic for noise readings
+#define MQTT_NOISE_READINGS_TOPIC "esp32/noise"                       // Topic for noise readings
 
 #define NUM_NOISE_READINGS 10                                       // Readings for calculating simple moving average
+#define NOISE_READING_DELAY 50
+#define MQTT_PUB_READINGS_DELAY 1000
 
 static const char *TAG = "MQTT";
 static const uint16_t MICROPHONE_ADC_BIAS = 2048;                   // Bias in middle of reading range (0 - 4095)
@@ -111,20 +113,32 @@ static void update_sma_noise(uint16_t *noise) {
     moving_avg_noise = total_noise / NUM_NOISE_READINGS; 
 }
 
-void app_main() {
-    init_all();
-
+void noise_analyse_task (void *pvParameters) {
     while (1) {
         uint16_t noise = 0;
         read_noise(&noise);
         update_sma_noise(&noise);
         printf("%d\n", moving_avg_noise);
+    
+        vTaskDelay(pdMS_TO_TICKS(NOISE_READING_DELAY)); 
+    }
+}
 
+void mqtt_publish_task(void *pvParameters) {
+    while (1) {
         uint8_t mqtt_payload[2];
         mqtt_payload[0] = moving_avg_noise;
         mqtt_payload[1] = (moving_avg_noise >> 8);
-        esp_mqtt_client_publish(mqtt_client, MQTT_MEASUREMENTS_TOPIC, (const char *)mqtt_payload, 2, 1, 0);
-
-        vTaskDelay(pdMS_TO_TICKS(50));                                              // Let CPU rest
+        esp_mqtt_client_publish(mqtt_client, MQTT_NOISE_READINGS_TOPIC, (const char *)mqtt_payload, 2, 1, 0);
+    
+        vTaskDelay(pdMS_TO_TICKS(MQTT_PUB_READINGS_DELAY));
     }
+     
+}
+
+void app_main() {
+    init_all();
+
+    xTaskCreate(noise_analyse_task, "noise_analyse_task", 2048, NULL, 5, NULL);
+    xTaskCreate(mqtt_publish_task, "mqtt_publish_task", 4096, NULL, 5, NULL);
 }
