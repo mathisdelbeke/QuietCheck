@@ -15,17 +15,17 @@
 #define WIFI_SSID WIFI_CONFIG_SSID
 #define WIFI_PASS WIFI_CONFIG_PASS
 #define MQTT_BROKER_URI "mqtt://192.168.0.202"                      // Pi's IP address
-#define MQTT_MEASUREMENTS_TOPIC "esp32/noice"                       // Topic for noice readings
+#define MQTT_MEASUREMENTS_TOPIC "esp32/noise"                       // Topic for noise readings
 
-#define NUM_NOICE_READINGS 10                                       // Readings for calculating simple moving average
+#define NUM_NOISE_READINGS 10                                       // Readings for calculating simple moving average
 
 static const char *TAG = "MQTT";
 static const uint16_t MICROPHONE_ADC_BIAS = 2048;                   // Bias in middle of reading range (0 - 4095)
 
-static uint16_t noice_readings[NUM_NOICE_READINGS] = {0};           
+static uint16_t noise_readings[NUM_NOISE_READINGS] = {0};           
 static uint8_t reading_index = 0;
-static uint32_t total_noice = 0;
-static uint16_t moving_avg_noice = 0;
+static uint32_t total_noise = 0;
+static uint16_t moving_avg_noise = 0;
 
 static esp_mqtt_client_handle_t mqtt_client;
 static adc_oneshot_unit_handle_t adc_handle;
@@ -95,36 +95,36 @@ static void init_all() {
     adc_init();
 }
 
-static void read_noice(uint16_t *noice) {
+static void read_noise(uint16_t *noise) {
     int adc_reading = 0;
     esp_err_t ret = adc_oneshot_read(adc_handle, ADC_CHANNEL_6, &adc_reading);      // Raw ADC value, GPIO34
     if (ret == ESP_OK) {
-        *noice = abs(adc_reading - MICROPHONE_ADC_BIAS);                            // Absolute difference from bias
+        *noise = abs(adc_reading - MICROPHONE_ADC_BIAS);                            // Absolute difference from bias
     }
 }
 
-static void update_sma_noice(uint16_t *noice) {
-    total_noice -= noice_readings[reading_index];                                   // Update simple moving average
-    noice_readings[reading_index] = *noice;
-    total_noice += noice_readings[reading_index];
-    reading_index = (reading_index + 1) % NUM_NOICE_READINGS;
-    moving_avg_noice = total_noice / NUM_NOICE_READINGS; 
+static void update_sma_noise(uint16_t *noise) {
+    total_noise -= noise_readings[reading_index];                                   // Update simple moving average
+    noise_readings[reading_index] = *noise;
+    total_noise += noise_readings[reading_index];
+    reading_index = (reading_index + 1) % NUM_NOISE_READINGS;
+    moving_avg_noise = total_noise / NUM_NOISE_READINGS; 
 }
 
 void app_main() {
     init_all();
 
     while (1) {
-        uint16_t noice = 0;
-        read_noice(&noice);
-        update_sma_noice(&noice);
-        printf("%d\n", moving_avg_noice);
+        uint16_t noise = 0;
+        read_noise(&noise);
+        update_sma_noise(&noise);
+        printf("%d\n", moving_avg_noise);
 
         uint8_t mqtt_payload[2];
-        mqtt_payload[0] = moving_avg_noice;
-        mqtt_payload[1] = (moving_avg_noice >> 8);
+        mqtt_payload[0] = moving_avg_noise;
+        mqtt_payload[1] = (moving_avg_noise >> 8);
         esp_mqtt_client_publish(mqtt_client, MQTT_MEASUREMENTS_TOPIC, (const char *)mqtt_payload, 2, 1, 0);
 
-        vTaskDelay(pdMS_TO_TICKS(50)); 
+        vTaskDelay(pdMS_TO_TICKS(50));                                              // Let CPU rest
     }
 }
