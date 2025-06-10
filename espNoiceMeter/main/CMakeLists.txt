@@ -7,6 +7,7 @@ idf_component_register(SRCS "main.c"
                         nvs_flash 
                         esp_wifi 
                         esp_event 
-                        mqtt 
+                        mqtt
                         esp_netif
+                        driver
                     )

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <driver/gpio.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_log.h>
@@ -12,12 +13,15 @@
 
 #include "wifi_config.h"
 
+#define BIEPER GPIO_NUM_27
+
 #define WIFI_SSID WIFI_CONFIG_SSID
 #define WIFI_PASS WIFI_CONFIG_PASS
 #define MQTT_BROKER_URI "mqtt://192.168.0.202"                      // Pi's IP address
-#define MQTT_NOISE_READINGS_TOPIC "esp32/noise"                       // Topic for noise readings
+#define MQTT_NOISE_READINGS_TOPIC "esp32/noise"                     // Topic for noise readings
 
 #define NUM_NOISE_READINGS 10                                       // Readings for calculating simple moving average
+#define TOO_LOUD_LEVEL 50
 #define NOISE_READING_DELAY 50
 #define MQTT_PUB_READINGS_DELAY 1000
 
@@ -76,6 +80,10 @@ static void mqtt_app_start() {
     esp_mqtt_client_start(mqtt_client);
 }
 
+static void gpio_init() {
+    gpio_set_direction(BIEPER, GPIO_MODE_OUTPUT);
+}
+
 static void adc_init() {
     adc_oneshot_unit_init_cfg_t init_config = {
         .unit_id = ADC_UNIT_1,
@@ -94,6 +102,7 @@ static void init_all() {
     wifi_init_sta();
     vTaskDelay(5000 / portTICK_PERIOD_MS);                                          // Wait for WiFi
     mqtt_app_start();
+    gpio_init();
     adc_init();
 }
 
@@ -113,25 +122,45 @@ static void update_sma_noise(uint16_t *noise) {
     moving_avg_noise = total_noise / NUM_NOISE_READINGS; 
 }
 
-void noise_analyse_task (void *pvParameters) {
+static void reset_sma_noise() {
+    total_noise = 0;
+    reading_index = 0;
+    moving_avg_noise = 0;
+    for (uint8_t i = 0; i < NUM_NOISE_READINGS; i++) {
+        noise_readings[i] = 0;
+    }  
+}
+
+static void check_too_loud() {
+    if (moving_avg_noise > TOO_LOUD_LEVEL) {                                                  
+        gpio_set_level(BIEPER, 1);
+        vTaskDelay(100);
+        gpio_set_level(BIEPER, 0);
+        reset_sma_noise();
+    }
+}
+
+
+void noise_reading_task (void *pvParameters) {
     while (1) {
         uint16_t noise = 0;
         read_noise(&noise);
         update_sma_noise(&noise);
+        check_too_loud();
         printf("%d\n", moving_avg_noise);
     
-        vTaskDelay(pdMS_TO_TICKS(NOISE_READING_DELAY)); 
+        vTaskDelay(pdMS_TO_TICKS(NOISE_READING_DELAY));                             // Yield
     }
 }
 
 void mqtt_publish_task(void *pvParameters) {
     while (1) {
         uint8_t mqtt_payload[2];
-        mqtt_payload[0] = moving_avg_noise;
-        mqtt_payload[1] = (moving_avg_noise >> 8);
+        mqtt_payload[0] = moving_avg_noise;                                         // LSB
+        mqtt_payload[1] = (moving_avg_noise >> 8);                                  // HSB
         esp_mqtt_client_publish(mqtt_client, MQTT_NOISE_READINGS_TOPIC, (const char *)mqtt_payload, 2, 1, 0);
     
-        vTaskDelay(pdMS_TO_TICKS(MQTT_PUB_READINGS_DELAY));
+        vTaskDelay(pdMS_TO_TICKS(MQTT_PUB_READINGS_DELAY));                         // Yield
     }
      
 }
@@ -139,6 +168,6 @@ void mqtt_publish_task(void *pvParameters) {
 void app_main() {
     init_all();
 
-    xTaskCreate(noise_analyse_task, "noise_analyse_task", 2048, NULL, 5, NULL);
+    xTaskCreate(noise_reading_task, "noise_reading_task", 2048, NULL, 5, NULL);     // Explain more
     xTaskCreate(mqtt_publish_task, "mqtt_publish_task", 4096, NULL, 5, NULL);
 }
