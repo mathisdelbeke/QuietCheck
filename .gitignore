@@ -5,6 +5,7 @@ build/
 *.map
 
 sdkconfig.ci
+noiseDetection.db
 
 # File with Wi-Fi credentials
 wifi_config.h

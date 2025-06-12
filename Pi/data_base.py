@@ -18,10 +18,10 @@ def init():
     connection.commit()
     connection.close()
 
-def add_noise_reading(noise_volume):
+def add_noise_reading(noise):
     connection = sqlite3.connect(DB_NAME)        
     cursor = connection.cursor()
-    cursor.execute(f"INSERT INTO {TABLE_NAME} (noise_volume) VALUES (?)", (noise_volume,))
+    cursor.execute(f"INSERT INTO {TABLE_NAME} (noise_volume) VALUES (?)", (noise,))
     connection.commit()
     connection.close()
 

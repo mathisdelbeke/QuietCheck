@@ -21,5 +21,5 @@ def on_mqtt_connect(client, userdata, flags, rc):
         client.subscribe(MQTT_NOISE_READINGS_TOPIC)
 
 def on_mqtt_message(client, userdata, msg):
-    noise_volume = msg.payload[0] | (msg.payload[1] << 8)       # Uint16_t value
-    message_queue.put(noise_volume)
+    noise = msg.payload[0] | (msg.payload[1] << 8)              # Uint16_t value
+    message_queue.put(noise)
