@@ -136,12 +136,11 @@ static void check_too_loud() {
         gpio_set_level(BIEPER, 1);
         vTaskDelay(100);
         gpio_set_level(BIEPER, 0);
-        reset_sma_noise();
+        reset_sma_noise();                                                          // Because SMA decreases to slow after beep, and thus multiple beeps
     }
 }
 
-
-void noise_reading_task (void *pvParameters) {
+void noise_reading_task (void *pvParameters) {                                      // No user-defined data (pointer to void parameters = NULL)
     while (1) {
         uint16_t noise = 0;
         read_noise(&noise);
@@ -153,7 +152,7 @@ void noise_reading_task (void *pvParameters) {
     }
 }
 
-void mqtt_publish_task(void *pvParameters) {
+void mqtt_publish_task(void *pvParameters) {                                        // No user-defined data (pointer to void parameters = NULL)
     while (1) {
         uint8_t mqtt_payload[2];
         mqtt_payload[0] = moving_avg_noise;                                         // LSB
@@ -162,12 +161,11 @@ void mqtt_publish_task(void *pvParameters) {
     
         vTaskDelay(pdMS_TO_TICKS(MQTT_PUB_READINGS_DELAY));                         // Yield
     }
-     
 }
 
 void app_main() {
     init_all();
 
-    xTaskCreate(noise_reading_task, "noise_reading_task", 2048, NULL, 5, NULL);     // Explain more
-    xTaskCreate(mqtt_publish_task, "mqtt_publish_task", 4096, NULL, 5, NULL);
+    xTaskCreate(noise_reading_task, "noise_reading_task", 2048, NULL, 5, NULL);     // 2048 words = 8192 bytes (8 KB) of memory on stack allocated, priority lvl 5, and no pointer to task handler needed
+    xTaskCreate(mqtt_publish_task, "mqtt_publish_task", 4096, NULL, 5, NULL);       // 4096 words = 16384 bytes (16 KB) of memory on stack allocated, priority lvl 5, and no pointer to task handler needed
 }
